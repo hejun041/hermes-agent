@@ -1,0 +1,116 @@
+name: Hermes upstream candidate verification
+
+on:
+  push:
+    branches:
+      - ci-verify-hermes-upstream-20261102
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Exact candidate commit to verify
+        required: true
+        type: string
+        default: 711aa889f0c9df1e11ee8a0207d93b03c2769e3d
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Verify exact candidate source and artifact
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Check out exact candidate
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+          fetch-depth: 0
+
+      - name: Set up locked Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '26.12.1'
+          cache: npm
+
+      - name: Install Node dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Build dashboard artifact
+        env:
+          HERMES_WEB_BUILD_LIGHT: '1'
+        run: npm run build --workspace web
+
+      - name: Verify emitted ChatPage artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s hermes_cli/web_dist/index.html
+          asset=$(find hermes_cli/web_dist/assets -maxdepth 1 -name 'ChatPage-*.js' -print -quit | sed 's#^hermes_cli/web_dist/##')
+          test -n "$asset"
+          file="hermes_cli/web_dist/$asset"
+          test -s "$file"
+          focus_count=$(node - "$file" <<'NODE'
+          const fs = require('node:fs');
+          const source = fs.readFileSync(process.argv[2], 'utf8');
+          const matches = source.match(/window\.addEventListener\(\s*["'`]focus["'`]/g) || [];
+          process.stdout.write(String(matches.length));
+          NODE
+          )
+          echo "verified_ref=${{ inputs.ref || github.sha }}"
+          echo "verified_asset=$asset"
+          echo "focus_listener_count=$focus_count"
+          test "$focus_count" -eq 1
+          tar -czf hermes-dashboard-web-dist.tgz hermes_cli/web_dist
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+
+      - name: Configure fixture Git identity
+        run: |
+          git config --global user.name "Hermes CI Fixture"
+          git config --global user.email "hermes-ci-fixture@example.invalid"
+
+      - name: Install Python test dependencies
+        run: |
+          python -m pip install --disable-pip-version-check uv
+          uv sync --group dev --no-install-project
+
+      - name: Isolate updater tests from the owning install redirect
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/hermes-test-bootstrap"
+          cat > "$RUNNER_TEMP/hermes-test-bootstrap/hermes_ci_plugin.py" <<'PY'
+          """CI-only plugin: updater fixtures must stay in throwaway Git repos."""
+          def pytest_configure(config):
+              import hermes_cli.update_owning_install as _owning
+              _owning.retarget_to_owning_install = lambda project_root: None
+          PY
+
+      - name: Run updater, metrics, release-channel, and boundary tests
+        env:
+          PYTHONPATH: ${{ runner.temp }}/hermes-test-bootstrap:${{ github.workspace }}
+          PYTEST_PLUGINS: hermes_ci_plugin
+        run: |
+          .venv/bin/python -m pytest -q -o addopts= \
+            tests/hermes_cli/test_update_diverged_rescue_ref.py \
+            tests/hermes_cli/test_update_head_moved_gate.py \
+            tests/hermes_cli/test_source_release_channels.py \
+            tests/hermes_cli/test_shared_metrics_install_failures.py \
+            tests/hermes_cli/test_update_existing_branch_baseline.py \
+            tests/hermes_cli/test_update_parked_branch_guard.py \
+            tests/hermes_cli/test_update_channel_release_hold.py \
+            tests/hermes_cli/test_web_server_host_header.py \
+            -k 'not treeless and not promisor and not partial_clone'
+
+      - name: Upload verified dashboard artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hermes-upstream-candidate-web-dist-${{ github.sha }}
+          path: hermes-dashboard-web-dist.tgz
+          if-no-files-found: error
+          retention-days: 14
