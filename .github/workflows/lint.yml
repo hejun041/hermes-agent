@@ -20,7 +20,7 @@ on:
         type: string
         default: ''
       event_name:
-        description: The event name from the calling orchestrator (pull_request or push).
+        description: The caller event name (pull_request, workflow_dispatch, or workflow_call).
         type: string
         required: true
       python:
@@ -38,7 +38,7 @@ concurrency:
 jobs:
   lint-diff:
     name: ruff + ty diff
-    if: inputs.event_name == 'pull_request' && inputs.python
+    if: inputs.python && (inputs.event_name == 'pull_request' || inputs.event_name == 'workflow_dispatch')
     runs-on: blacksmith-4vcpu-ubuntu-2404
     timeout-minutes: 10
     steps:
