@@ -6,32 +6,28 @@ name: Sandbox desktop image
 # It contains NO Hermes code, so it does not need to track main: it changes
 # when its Dockerfile changes, not when the agent changes.
 #
-# Triggers: a PR that edits the Dockerfile/smoke (build + smoke, no push),
-# a release (publish :<tag>-desktop and roll :desktop), and manual dispatch.
-# Deliberately NOT on every main push: two 4 GB multi-arch builds per commit
-# for an image that changes a few times a year.
+# Manual dispatch only in this fork. Two 4 GB multi-arch builds are therefore
+# started only when explicitly requested.
 
 on:
-  pull_request:
-    paths:
-      - docker/sandbox-desktop.Dockerfile
-      - docker/sandbox-desktop-smoke.sh
-      - .github/workflows/sandbox-image.yml
-  release:
-    types: [published]
   workflow_dispatch:
     inputs:
       publish:
         description: Push to Docker Hub (rolls :desktop)
         type: boolean
         default: false
+      release-tag:
+        description: Optional version tag to publish as <tag>-desktop
+        required: false
+        type: string
+        default: ''
 
 permissions:
   contents: read
 
 concurrency:
-  group: sandbox-image-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: sandbox-image-${{ github.ref }}
+  cancel-in-progress: false
 
 env:
   IMAGE_NAME: nousresearch/hermes-sandbox
@@ -67,7 +63,7 @@ jobs:
           tags: ${{ env.IMAGE_NAME }}:test
           load: true
           cache-from: type=gha,scope=sandbox-${{ matrix.arch }}
-          cache-to: ${{ github.event_name != 'pull_request' && format('type=gha,mode=max,scope=sandbox-{0}', matrix.arch) || '' }}
+          cache-to: ${{ format('type=gha,mode=max,scope=sandbox-{0}', matrix.arch) }}
 
       # The contract: the launcher, cua-driver and a headed Chromium work as `pn`.
       - name: Smoke
@@ -75,7 +71,7 @@ jobs:
 
   # Trusted source only; the sole Docker Hub credential boundary.
   publish:
-    if: github.repository == 'NousResearch/hermes-agent' && (github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && inputs.publish))
+    if: github.repository == 'NousResearch/hermes-agent' && github.event_name == 'workflow_dispatch' && inputs.publish == true
     needs: [build]
     environment: container-publish
     strategy:
@@ -129,7 +125,7 @@ jobs:
 
   # Registry-side stitch of the two digests into one tagged manifest list.
   merge:
-    if: ${{ !cancelled() && github.repository == 'NousResearch/hermes-agent' && (github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && inputs.publish)) }}
+    if: ${{ !cancelled() && github.repository == 'NousResearch/hermes-agent' && github.event_name == 'workflow_dispatch' && inputs.publish == true }}
     needs: [publish]
     # GitHub-hosted with docker/setup-buildx-action, as before the runner migration: on
     # Blacksmith `imagetools create` cannot commit a manifest list to Docker Hub (404 on the
@@ -156,7 +152,7 @@ jobs:
       - name: Create manifest list and push
         working-directory: ${{ runner.temp }}/digests
         env:
-          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          RELEASE_TAG: ${{ inputs.release-tag || '' }}
         run: |
           set -euo pipefail
           shopt -s nullglob

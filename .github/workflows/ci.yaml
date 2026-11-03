@@ -38,29 +38,24 @@ on:
         required: false
         type: boolean
         default: false
-  pull_request:
-  push:
-    branches: [main]
-
 permissions:
   contents: read
   pull-requests: write # needed by lint (PR comment) + supply-chain review_status
 
-# cancel-in-progress only ever applies to PR events. A push, a dispatch, and
-# above all a stable-release workflow_call run are never cancelled by a later
-# commit or a rerun of the same branch — the caller's own concurrency uses
+# cancel-in-progress is retained for compatibility with reusable callers. A
+# manual dispatch and, above all, a stable-release workflow_call run are never
+# cancelled by a later run — the caller's own concurrency uses
 # github.run_id, so even a parent rerun cannot kill this child mid-flight.
 # Release (workflow_call with inputs.release) never cancels and never gets
-# cancelled: its group is github.run_id. PRs collapse per-PR; pushes use the
-# ref as before.
+# cancelled: its group is github.run_id. A manual run uses its selected ref.
 concurrency:
-  group: ci-${{ inputs.release == true && github.run_id || (github.event_name == 'pull_request' && github.event.pull_request.number || github.ref) }}
-  cancel-in-progress: ${{ inputs.release != true && github.event_name == 'pull_request' }}
+  group: ci-${{ inputs.release == true && github.run_id || github.ref }}
+  cancel-in-progress: false
 
 jobs:
   # ─────────────────────────────────────────────────────────────────────
   # detect: run the classifier once. Every downstream job reads its outputs
-  # to decide whether to run. On push/dispatch the classifier fails open
+  # to decide whether to run. On manual dispatch the classifier fails open
   # (all lanes true) so post-merge validation is never weakened.
   #
   # A release run (inputs.release) additionally forces every lane true via
@@ -108,8 +103,7 @@ jobs:
       - name: Force all lanes on release; E2E only on release or dispatch
         # Overwrite the classifier outputs with 'true' when inputs.release. The E2E
         # lanes are forced off unless this is a release run or a manual dispatch
-        # (whose empty diff already turns every lane on): never on a pull request
-        # or a push to main, whatever the diff or labels say.
+        # (whose empty diff already turns every lane on).
         id: gate-lanes
         env:
           RELEASE: ${{ inputs.release }}
@@ -137,9 +131,8 @@ jobs:
   # Skipped workflows (if condition is false) don't spin up runners.
   #
   # The E2E suites (e2e, e2e-upgrade, both Desktop suites, and the two
-  # Windows journeys in tests-os) run ONLY on a release run (inputs.release)
-  # or a manual dispatch; the detect gate forces their lanes off for pull
-  # requests and pushes to main.
+  # Windows journeys in tests-os) run on release and manual runs; the detect
+  # gate controls applicability for reusable callers.
   # ─────────────────────────────────────────────────────────────────────
   tests:
     name: Python tests
@@ -197,8 +190,8 @@ jobs:
   rust-tests:
     name: Rust tests
     needs: detect
-    # Only for PRs that touch a Rust crate. `.rs` is under apps/, so these
-    # changes used to run the TypeScript matrix and nothing that compiles them.
+    # The classifier selects this lane for Rust changes; manual dispatch fails
+    # open and therefore includes it.
     if: needs.detect.outputs.rust == 'true'
     uses: ./.github/workflows/rust-tests.yml
     with:
@@ -219,9 +212,8 @@ jobs:
     name: Remote terminal backends
     needs: detect
     # The SSH and Docker terminal backends against a real sshd container and the
-    # runner's Docker daemon. Only PRs that touch the backends / terminal tool /
-    # their real tests start it (and every push to main); it runs in parallel with
-    # the other lanes and is required whenever detect selects it.
+    # runner's Docker daemon. The classifier selects it for reusable callers;
+    # manual dispatch fails open.
     if: needs.detect.outputs.remote_backends == 'true'
     uses: ./.github/workflows/remote-backends.yml
     with:
@@ -403,7 +395,7 @@ jobs:
   # Gate: runs after everything. ``if: always()`` ensures it reports a
   # status even when some deps were skipped.
   #
-  #   Non-release (PR/push): failure fails. Update/E2E consumers selected
+  #   Non-release (manual/reusable): failure fails. Update/E2E consumers selected
   #   by detect.outputs must succeed; only unselected consumers may skip.
   #   Release (inputs.release): strict — every required job must be
   #   `success`. A skipped required lane fails the gate; only the PR-only
@@ -569,8 +561,8 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
           cat ci-timings-summary.md >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Save baseline cache (main only)
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      - name: Save baseline cache (manual main run only)
+        if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
         run: |
           # Degraded runs (API rate-limited) produce no ci-timings.json —
           # skip rather than fail, and never cache an empty baseline.
@@ -580,8 +572,8 @@ jobs:
             echo "No timings JSON this run — skipping baseline update"
           fi
 
-      - name: Upload baseline to cache (main only)
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && hashFiles('ci-timings-baseline.json') != ''
+      - name: Upload baseline to cache (manual main run only)
+        if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && hashFiles('ci-timings-baseline.json') != ''
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ci-timings-baseline.json

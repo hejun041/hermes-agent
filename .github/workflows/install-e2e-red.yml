@@ -1,6 +1,6 @@
 name: Install & Update E2E red tracker
 
-# Someone hears about a red scheduled matrix. After every scheduled
+# Someone hears about a red matrix. After an explicit manual review of an
 # "Install & Update E2E" run, tests/install/e2e-assets/red-tracker.mjs keeps
 # ONE issue labelled install-e2e-red in step with it: a red run opens it (or
 # rewrites the open one's body in place with the current red legs grouped by
@@ -14,9 +14,6 @@ name: Install & Update E2E red tracker
 # Dispatch it by hand to preview (dry-run, the default) or replay a run.
 
 on:
-  workflow_run:
-    workflows: ['Install & Update E2E']
-    types: [completed]
   workflow_dispatch:
     inputs:
       run-id:
@@ -39,7 +36,7 @@ concurrency:
 jobs:
   track:
     name: Update the install-e2e-red tracker
-    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.event == 'schedule'
+    if: github.event_name == 'workflow_dispatch'
     runs-on: blacksmith-4vcpu-ubuntu-2404
     timeout-minutes: 5
     permissions:
@@ -54,6 +51,6 @@ jobs:
       - name: Open, update or close the tracker
         env:
           GH_TOKEN: ${{ github.token }}
-          RUN_ID: ${{ inputs.run-id || github.event.workflow_run.id }}
+          RUN_ID: ${{ inputs.run-id }}
           DRY_RUN: ${{ inputs.dry-run == true && '--dry-run' || '' }}
         run: node tests/install/e2e-assets/red-tracker.mjs --run-id "$RUN_ID" $DRY_RUN

@@ -8,11 +8,6 @@ on:
         required: true
         type: string
         default: main
-  push:
-    branches:
-      - main
-      - integrate/hermes-local-patches-20261102
-
 permissions:
   contents: read
 

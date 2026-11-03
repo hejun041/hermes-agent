@@ -5,15 +5,13 @@ name: Skills Index Freshness Check
 # stale OR the file disappears entirely OR a major source has collapsed,
 # this workflow opens a GitHub issue so we hear about it before users do.
 #
-# Triggered every 4 hours so we catch a stuck cron within one tick.
+# Manual-only in this fork; run it when an index freshness check is needed.
 #
 # The check-catalog-cors job watches the same host from Hermes Desktop's side:
 # it fetches /docs/api/plugins.json with a browser's Origin header and files
 # its own issue when a browser would block the fetch.
 
 on:
-  schedule:
-    - cron: '0 */4 * * *'
   workflow_dispatch:
 
 permissions:
@@ -152,8 +150,8 @@ jobs:
           **Detail:** $DETAIL
 
           The Skills Hub at /docs/skills depends on \`/docs/api/skills-index.json\`.
-          The unified index is rebuilt by \`.github/workflows/skills-index.yml\` (cron 6/18 UTC)
-          and \`.github/workflows/deploy-site.yml\` (on every push affecting website/skills).
+          The unified index is rebuilt by \`.github/workflows/skills-index.yml\` (manual dispatch)
+          and \`.github/workflows/deploy-site.yml\` (manual deployment).
           If this issue keeps reopening, check the latest runs:
 
           - https://github.com/${{ github.repository }}/actions/workflows/skills-index.yml

@@ -7,45 +7,53 @@ name: CI review comment
 # A run stays in progress until its last job ends, and GitHub refuses
 # ``gh run rerun`` on a run that is in progress.
 #
-# ``workflow_run`` starts this when CI starts. It always reads the workflow
-# and the scripts from the default branch, never from the PR head.
-# It makes a write token safe here.
+# This workflow is manual-only. Supply the CI run and PR metadata explicitly;
+# it always reads the workflow and scripts from the default branch, never from
+# the PR head.
 #
 # The poller reads job results through the API. Thus it watches the CI run
 # and the separate docker run, and it depends on neither.
 
 on:
-  workflow_run:
-    workflows: [CI]
-    # ``in_progress``, not ``requested``: a first-time contributor's run
-    # sits in ``action_required`` until a maintainer approves it, and
-    # ``requested`` fires at creation — the poller would wait out its
-    # whole timeout on a run that never starts. ``in_progress`` fires
-    # when the run actually starts, and it also fires on re-runs, which
-    # ``requested`` does not.
-    types: [in_progress]
-
+  workflow_dispatch:
+    inputs:
+      ci_run_id:
+        description: CI run ID to summarize
+        required: true
+        type: string
+      pr_number:
+        description: Pull request number to update
+        required: true
+        type: string
+      run_url:
+        description: Optional URL of the CI run
+        required: false
+        type: string
+      commit_sha:
+        description: Optional source commit SHA
+        required: false
+        type: string
+      commit_message:
+        description: Optional source commit message
+        required: false
+        type: string
 permissions:
   contents: read
   actions: read
   pull-requests: write
 
-# One poller per CI run. A new push starts a new CI run, and its poller
-# cancels the poller of the run that GitHub superseded. The group keys
-# on the head repository too: fork PRs often share a branch name
+# One poller per CI run. A new manual request can replace the prior poller.
+# The group keys on the PR number so repeated requests do not overlap; fork PRs
+# often share a branch name
 # (``main``, ``patch-1``), and two PRs must not cancel each other.
 concurrency:
-  group: ci-review-comment-${{ github.event.workflow_run.head_repository.full_name }}-${{ github.event.workflow_run.head_branch }}
+  group: ci-review-comment-${{ inputs.pr_number || github.run_id }}
   cancel-in-progress: true
 
 jobs:
   comment:
     name: CI review comment (live)
-    # Fork PRs get no comment: the poller needs a write token, and the
-    # ``pull_requests`` payload is empty for a fork run.
-    if: >-
-      github.event.workflow_run.event == 'pull_request' &&
-      github.event.workflow_run.head_repository.full_name == github.repository
+    if: github.event_name == 'workflow_dispatch'
     runs-on: blacksmith-4vcpu-ubuntu-2404
     timeout-minutes: 60
     steps:
@@ -63,17 +71,17 @@ jobs:
           # ignores an env: override, so that name silently resolves to THIS
           # run. The poller then watches itself, which stays in_progress for
           # as long as the poller runs, and it waits out its whole timeout.
-          CI_RUN_ID: ${{ github.event.workflow_run.id }}
+          CI_RUN_ID: ${{ inputs.ci_run_id }}
           # Sibling runs for the same commit that the comment also covers,
           # one workflow name per line (a name can contain a comma).
           # The poller resolves each name to its runs through the API.
           WATCH_WORKFLOWS: |
             Docker Build, Test, and Publish
-          PR_NUMBER: ${{ github.event.workflow_run.pull_requests[0].number }}
-          RUN_URL: ${{ github.event.workflow_run.html_url }}
+          PR_NUMBER: ${{ inputs.pr_number }}
+          RUN_URL: ${{ inputs.run_url || '' }}
           # Commit info for the review comment header.
-          COMMIT_SHA: ${{ github.event.workflow_run.head_sha }}
-          COMMIT_MESSAGE: ${{ github.event.workflow_run.head_commit.message }}
+          COMMIT_SHA: ${{ inputs.commit_sha || '' }}
+          COMMIT_MESSAGE: ${{ inputs.commit_message || '' }}
         run: |
           python3 -u scripts/ci/live_comment.py \
             --interval 15 \

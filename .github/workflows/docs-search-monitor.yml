@@ -9,17 +9,11 @@ name: Docs Search Monitor
 # bundle the site is serving, queries Algolia with the site's Origin, opens the
 # top results, then types into the real search modal in headless Chromium.
 #
-# Runs every 6 hours and after every Deploy Site run. This workflow holds no
-# notification secrets: a failing probe turns the run red and records each
-# reason as an `::error::` annotation. Alerting lives with whoever subscribes
-# to the repository's `workflow_run` webhook events for this file.
+# Manual-only in this fork. This workflow holds no notification secrets: a
+# failing probe turns the run red and records each reason as an `::error::`
+# annotation.
 
 on:
-  schedule:
-    - cron: '17 */6 * * *'
-  workflow_run:
-    workflows: ['Deploy Site']
-    types: [completed]
   workflow_dispatch:
 
 permissions:

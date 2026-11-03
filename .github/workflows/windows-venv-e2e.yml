@@ -8,14 +8,10 @@ name: Windows venv-holder live E2E
 # table — the coverage that cannot exist on the Linux lanes and that the
 # maintainer cannot exercise locally before the work reaches main.
 #
-# Deliberately NOT wired to pull_request/main: it fires only on pushes to
-# wine2e/** working branches, so it costs nothing on normal PRs. Delete or
-# keep dormant after the venv-holder work lands.
+# Manual-only in this fork. It is deliberately not wired to pull requests or
+# main; Windows venv validation is started only when explicitly requested.
 
 on:
-  push:
-    branches:
-      - 'wine2e/**'
   workflow_call:
     inputs:
       commit:
@@ -28,6 +24,7 @@ on:
         type: boolean
         default: false
 
+  workflow_dispatch:
 permissions:
   contents: read
 

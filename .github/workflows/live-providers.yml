@@ -12,9 +12,6 @@ name: Live provider canaries
 #   LIVE_OPENAI_API_KEY, LIVE_GEMINI_API_KEY, LIVE_XAI_API_KEY
 
 on:
-  push:
-    tags:
-      - "v*"  # release gate
   workflow_dispatch:
     inputs:
       filter:
