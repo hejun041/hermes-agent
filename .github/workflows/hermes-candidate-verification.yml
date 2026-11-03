@@ -79,7 +79,7 @@ jobs:
         env:
           PYTHONPATH: ${{ github.workspace }}
         run: |
-          .venv/bin/python -m pytest -q -o addopts= \
+          .venv/bin/python -m pytest -q \
             tests/hermes_cli/test_update_diverged_rescue_ref.py \
             tests/hermes_cli/test_update_existing_branch_baseline.py \
             tests/hermes_cli/test_update_head_moved_gate.py \
