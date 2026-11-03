@@ -1,14 +1,6 @@
 name: Archive pinned PM inputs
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'pm/lock.json'
-      - 'pm/artifact-mirror.json'
-      - 'scripts/termux/runtime_libs.json'
-      - 'scripts/ci/archive_inputs.py'
-      - '.github/workflows/archive-inputs.yml'
   workflow_call:
     inputs:
       sha:
@@ -23,7 +15,7 @@ permissions:
 jobs:
   archive-inputs:
     name: Preserve every pinned HTTP input
-    if: github.event_name != 'pull_request' && github.event_name != 'pull_request_target'
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'workflow_call'
     runs-on: blacksmith-4vcpu-ubuntu-2404
     environment: release-signing
     timeout-minutes: 60

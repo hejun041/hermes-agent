@@ -1,21 +1,6 @@
 name: Termux verification
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'scripts/termux/**'
-      - 'pm/**'
-      - '!pm/**/*.md'
-      - 'tests/scripts/test_termux*'
-      - '.github/workflows/termux-verify.yml'
-  pull_request:
-    paths:
-      - 'scripts/termux/**'
-      - 'pm/**'
-      - '!pm/**/*.md'
-      - 'tests/scripts/test_termux*'
-      - '.github/workflows/termux-verify.yml'
   workflow_dispatch:
   workflow_call:
     inputs:
@@ -100,7 +85,7 @@ jobs:
   # keeps a fork or an unprovisioned main green instead of red.
   r2-provisioned:
     name: Detect R2 credentials
-    if: github.event_name != 'pull_request' && github.event_name != 'pull_request_target'
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'workflow_call'
     runs-on: blacksmith-4vcpu-ubuntu-2404
     environment: release-signing
     timeout-minutes: 5

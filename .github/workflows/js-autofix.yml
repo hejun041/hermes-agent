@@ -1,7 +1,7 @@
 name: auto-fix lint issues & formatting
 
-# On push to main (or manual trigger), run `npm run fix` on each workspace
-# package and apply any changes via a PR.
+# On manual trigger, run `npm run fix` on each workspace package and apply any
+# changes via a PR.
 #
 # Fixable lint issues (import sorting, unused imports, curly braces, etc.) are
 # auto-corrected on merge so PRs aren't blocked by them. The PR-time eslint
@@ -35,16 +35,6 @@ name: auto-fix lint issues & formatting
 #      on the current state.
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - '**/*.js'
-      - '**/*.cjs'
-      - '**/*.mjs'
-      - '**/*.ts'
-      - '**/*.tsx'
-      - 'package.json'
-      - 'package-lock.json'
   workflow_dispatch:
 
 permissions:

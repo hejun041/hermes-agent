@@ -11,9 +11,6 @@ name: Nix flake check
 # fast required jobs beside it. A separate run reruns and cancels on its own.
 
 on:
-  pull_request:
-  push:
-    branches: [main]
   workflow_call:
     inputs:
       commit:
@@ -32,6 +29,7 @@ on:
         default: ''
 
 
+  workflow_dispatch:
 permissions:
   contents: read
 
@@ -40,21 +38,16 @@ permissions:
 # cancel-in-progress is false there — each run saves the store cache that
 # later PRs restore from.
 concurrency:
-  group: nix-${{ inputs.release == true && github.run_id || github.event.pull_request.number || github.ref }}
-  cancel-in-progress: ${{ inputs.release != true && github.event_name == 'pull_request' }}
+  group: nix-${{ inputs.release == true && github.run_id || github.ref }}
+  cancel-in-progress: false
 
 env:
   # A stable run is on the default branch, so GITHUB_SHA is not the candidate.
   CANDIDATE_COMMIT: ${{ inputs.commit || github.sha }}
 
 jobs:
-  # A `paths:` filter cannot gate this workflow: a push to main must run it
-  # whatever changed, because the flake packages the product and nine of the
-  # checks run the built binary. The `nix` lane is a slow lane
-  # (classify_changes.py): on a pull request it runs for the flake files and
-  # the dependency manifests, or the run-e2e label. On push the classifier
-  # fails open and every lane is true, so a product change that breaks the
-  # flake turns main red after the merge.
+  # Manual dispatch has no PR diff, so the classifier fails open and runs the
+  # flake lane. Reusable callers can still pass a candidate commit explicitly.
   detect:
     name: Detect affected areas
     runs-on: blacksmith-4vcpu-ubuntu-2404
@@ -123,12 +116,9 @@ jobs:
           # of the lockfile, so an old store still removes most of the work.
           restore-prefixes-first-match: nix-${{ runner.os }}-
 
-          # Save from main only. A cache that a PR writes is visible to that
-          # PR alone and never to another branch, so a save there spends the
-          # 10 GB quota of the repository and helps no later run. A PR still
-          # restores: it reads the cache that the merge to main wrote. This is
-          # the same rule that docker.yml applies to `cache-to`.
-          save: ${{ github.event_name != 'pull_request' }}
+          # Save from the default branch on explicitly invoked runs. A manual
+          # run can restore and update the cache only when it is testing main.
+          save: ${{ github.event_name == 'workflow_dispatch' || github.event_name == 'workflow_call' }}
 
           # Collect garbage before the save, so the store stays inside the
           # 10 GB quota of the repository. Without a limit the store grows at

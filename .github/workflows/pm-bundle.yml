@@ -31,20 +31,6 @@ on:
         required: false
         type: string
         default: ''
-  pull_request:
-    paths:
-      - 'pm/**'
-      - '!pm/**/*.md'
-      - 'scripts/bundles/**'
-      - 'scripts/ci/desktop_build_cache.py'
-      - '.github/actions/desktop-build-cache/**'
-      - 'scripts/windows-build-deps.ps1'
-      - 'scripts/build/windows-deps.ps1'
-      - '.github/actions/setup-windows-build-deps/**'
-      - 'uv.lock'
-      - 'pyproject.toml'
-      - '.github/workflows/pm-bundle.yml'
-
 permissions:
   contents: read
 
@@ -121,7 +107,7 @@ jobs:
 
       # PRs can restore candidates but never gain a cache-writing lane here.
       - name: Save native dependency candidates before assembly
-        if: ${{ !cancelled() && steps.prepare.outcome == 'success' && github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && (inputs.ref == '' || inputs.ref == github.sha) }}
+        if: ${{ !cancelled() && steps.prepare.outcome == 'success' && (github.event_name == 'workflow_dispatch' || github.event_name == 'workflow_call') && github.ref == 'refs/heads/main' && (inputs.ref == '' || inputs.ref == github.sha) }}
         uses: ./.github/actions/desktop-build-cache
         with:
           phase: save

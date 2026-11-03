@@ -1,18 +1,6 @@
 name: Deploy Site
 
 on:
-  release:
-    types: [published]
-  push:
-    branches: [main]
-    paths:
-      - 'website/**'
-      - 'skills/**'
-      - 'optional-skills/**'
-      # Catalog entry/removal merges must republish /docs/api/plugin-catalog.json —
-      # installed clients fetch it for live catalog refresh.
-      - 'plugin-catalog/**'
-      - '.github/workflows/deploy-site.yml'
   workflow_dispatch:
     inputs:
       skills_index_run_id:
@@ -37,12 +25,8 @@ concurrency:
 
 jobs:
   deploy-vercel:
-    # Triggered automatically on release publish (production cuts) and
-    # manually via `gh workflow run deploy-site.yml` when an out-of-band
-    # main commit needs to ship live before the next release tag — e.g.
-    # a skills-index PR that doesn't touch website/** paths and so
-    # doesn't auto-deploy via the deploy-docs path.
-    if: github.event_name == 'release' || github.event_name == 'workflow_dispatch'
+    # Manual-only and upstream-only; a fork dispatch must not call Vercel.
+    if: github.repository == 'NousResearch/hermes-agent' && github.event_name == 'workflow_dispatch'
     runs-on: blacksmith-4vcpu-ubuntu-2404
     timeout-minutes: 30
     steps:
@@ -85,8 +69,8 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
-          SKILLS_INDEX_RUN_ID: ${{ github.event.inputs.skills_index_run_id || '' }}
-          REBUILD_SKILLS_INDEX: ${{ github.event.inputs.rebuild_skills_index || 'false' }}
+          SKILLS_INDEX_RUN_ID: ${{ inputs.skills_index_run_id || '' }}
+          REBUILD_SKILLS_INDEX: ${{ inputs.rebuild_skills_index || 'false' }}
         run: |
           # The unified external catalog is expensive to crawl and can burn
           # through the repository installation's GitHub API quota when several

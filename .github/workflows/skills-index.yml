@@ -1,19 +1,10 @@
 name: Build Skills Index
 
 on:
-  schedule:
-    # Run twice daily: 6 AM and 6 PM UTC
-    - cron: "0 6,18 * * *"
   workflow_dispatch: # Manual trigger
-  push:
-    branches: [main]
-    paths:
-      - "scripts/build_skills_index.py"
-      - ".github/workflows/skills-index.yml"
-
 permissions:
   contents: read
-  actions: write # to trigger deploy-site.yml on schedule
+  actions: write # to trigger deploy-site.yml when manually requested
 
 jobs:
   build-index:
@@ -52,8 +43,9 @@ jobs:
         run: python scripts/build_skills_index.py
 
       # Plugin-catalog star counts follow the same rule as the index: GitHub is consulted
-      # only here, on the schedule (one GraphQL request for every catalog repo), and docs
-      # deploys reuse the artifact / live copy without touching the API.
+      # only here, on an explicit manual run (one GraphQL request for every
+      # catalog repo), and docs deploys reuse the artifact / live copy without
+      # touching the API.
       #
       # Fresh token: the App installation token minted at job start lives 1 h, and the
       # index walk above runs 60-85 min, so the probe used an expired token and 401'd on
@@ -79,12 +71,12 @@ jobs:
             website/static/api/plugin-stars.json
           retention-days: 7
 
-  # Re-trigger the docs deploy so the refreshed index lands on the live site.
+  # Re-trigger the docs deploy after an explicit manual index run.
   # The deploy itself is owned by deploy-site.yml (which crawls and deploys
-  # everything in one pipeline); we just kick it on a schedule.
+  # everything in one pipeline); this fork does not schedule it.
   trigger-deploy:
     needs: build-index
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch'
     runs-on: blacksmith-4vcpu-ubuntu-2404
     timeout-minutes: 15
     environment: trusted-automation

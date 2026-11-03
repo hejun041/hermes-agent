@@ -12,9 +12,6 @@ name: Windows Desktop attach E2E
 
 on:
   workflow_dispatch:
-  push:
-    branches: ['wine2e-desktop/**']
-
 permissions:
   contents: read
 
