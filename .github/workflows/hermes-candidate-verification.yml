@@ -78,8 +78,10 @@ jobs:
       - name: Run targeted updater and boundary tests
         env:
           PYTHONPATH: ${{ github.workspace }}
+          HERMES_TEST_WORKERS: '2'
+          HERMES_TEST_FILE_TIMEOUT: '900'
         run: |
-          .venv/bin/python -m pytest -q \
+          scripts/run_tests.sh \
             tests/hermes_cli/test_update_diverged_rescue_ref.py \
             tests/hermes_cli/test_update_existing_branch_baseline.py \
             tests/hermes_cli/test_update_head_moved_gate.py \
@@ -87,7 +89,7 @@ jobs:
             tests/hermes_cli/test_update_parked_branch_guard.py \
             tests/hermes_cli/test_web_server_host_header.py \
             tests/agent/test_cline_daily_limit_cooldown.py \
-            -k 'not treeless and not promisor and not partial_clone'
+            -q
 
       - name: Upload verified dashboard artifact
         uses: actions/upload-artifact@v4
